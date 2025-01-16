@@ -3,51 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NameSilo Domain Checker</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 50px;
-        }
-        input, button {
-            padding: 10px;
-            margin: 5px;
-            font-size: 16px;
-        }
-        #result {
-            margin-top: 20px;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <h1>Check Domain Availability</h1>
-    <input type="text" id="domainName" placeholder="Enter domain (e.g., example.com)" />
-    <button onclick="checkDomain()">Check Availability</button>
-    <p id="result"></p>
-
+    <title>Freenom Domain Registration</title>
     <script>
-        async function checkDomain() {
+        // This function checks the availability of the domain
+        function checkDomainAvailability() {
             const domain = document.getElementById('domainName').value;
-            const apiKey = '090962cfcbf6da94f133'; // Replace with your NameSilo API key
+            const apiKey = '090962cfcbf6da94f133'; // Replace with your Freenom API key
             
-            const url = `https://www.namesilo.com/api/checkRegisterAvailability?version=1&type=json&key=${apiKey}&domain=${domain}`;
-            
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.reply.available === "yes") {
-                    document.getElementById('result').innerText = `Domain ${domain} is available!`;
+            // Endpoint for checking domain availability
+            const apiUrl = `https://api.freenom.com/v2/domain/search?apikey=${apiKey}&domain=${domain}`;
+
+            // Fetch domain availability from Freenom API
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const resultDiv = document.getElementById('result');
+                    if (data.status === "available") {
+                        resultDiv.innerHTML = `Domain <b>${domain}</b> is available!`;
+                        document.getElementById('registerButton').style.display = 'block';
+                    } else {
+                        resultDiv.innerHTML = `Domain <b>${domain}</b> is not available.`;
+                        document.getElementById('registerButton').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error while checking domain availability.');
+                });
+        }
+
+        // Function to register the domain if available
+        function registerDomain() {
+            const domain = document.getElementById('domainName').value;
+            const apiKey = '090962cfcbf6da94f133'; // Replace with your Freenom API key
+            const apiUrl = `https://api.freenom.com/v2/domain/register?apikey=${apiKey}&domain=${domain}`;
+
+            // Call the API to register the domain
+            fetch(apiUrl, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                const resultDiv = document.getElementById('result');
+                if (data.status === "success") {
+                    resultDiv.innerHTML = `Domain <b>${domain}</b> has been successfully registered!`;
                 } else {
-                    document.getElementById('result').innerText = `Domain ${domain} is not available.`;
+                    resultDiv.innerHTML = `Failed to register <b>${domain}</b>. Try again later.`;
                 }
-            } catch (error) {
-                document.getElementById('result').innerText = "Error checking domain availability.";
-                console.error(error);
-            }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error while registering the domain.');
+            });
         }
     </script>
+</head>
+<body>
+    <h1>Freenom Domain Registration</h1>
+    <p>Enter your desired domain name:</p>
+
+    <!-- Domain name input -->
+    <input type="text" id="domainName" placeholder="Enter domain name (e.g., example.tk)" required>
+    <button type="button" onclick="checkDomainAvailability()">Check Domain Availability</button>
+
+    <div id="result"></div>
+
+    <!-- Register Button -->
+    <button id="registerButton" style="display: none;" onclick="registerDomain()">Register Domain</button>
+
 </body>
 </html>
