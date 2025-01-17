@@ -1,108 +1,78 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Domain Search</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f9;
-            text-align: center;
-        }
-        .container {
-            max-width: 600px;
-            margin: 50px auto;
-            background: #fff;
-            padding: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
-        input, button {
-            padding: 10px;
-            font-size: 16px;
-            margin: 5px 0;
-        }
-        input {
-            width: 80%;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .results {
-            margin-top: 20px;
-        }
-        .results span {
-            display: block;
-            padding: 10px;
-            font-weight: bold;
-        }
-        .hosting {
-            margin-top: 30px;
-            text-align: left;
-        }
-        .hosting h2 {
-            margin-bottom: 10px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Domain Search</h1>
-        <form id="domainSearchForm">
-            <input type="text" id="domainName" placeholder="Enter domain name (e.g., example.com)">
-            <button type="submit">Search</button>
-        </form>
-        <div class="results" id="searchResults"></div>
-        <div class="hosting">
-            <h2>Hosting Plans</h2>
-            <ul>
-                <li>Basic Hosting: $5/month</li>
-                <li>Standard Hosting: $10/month</li>
-                <li>Premium Hosting: $20/month</li>
-            </ul>
-        </div>
-    </div>
-    <script>
-        const form = document.getElementById("domainSearchForm");
-        const resultsDiv = document.getElementById("searchResults");
+const express = require("express");
+const axios = require("axios");
+const cors = require("cors");
+const Stripe = require("stripe");
 
-        form.addEventListener("submit", async (event) => {
-            event.preventDefault();
-            const domain = document.getElementById("domainName").value.trim();
-            if (!domain) {
-                resultsDiv.innerHTML = "<span style='color: red;'>Please enter a domain name!</span>";
-                return;
-            }
-            resultsDiv.innerHTML = "<span>Checking availability...</span>";
+// Configuration
+const app = express();
+const PORT = 5000;
+const NAMESILO_API_KEY = "090962cfcbf6da94f133";
+const STRIPE_SECRET_KEY = "your_stripe_secret_key"; // Replace with your actual Stripe secret key
+const stripe = Stripe(STRIPE_SECRET_KEY);
 
-            try {
-                const response = await fetch(`http://localhost:5000/api/check-domain?domain=${domain}`);
-                const data = await response.text();
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(data, "text/xml");
-                const availability = xmlDoc.getElementsByTagName("available")[0].textContent;
+app.use(cors());
+app.use(express.json());
+app.use(express.static("public")); // Serve the frontend
 
-                if (availability === "true") {
-                    resultsDiv.innerHTML = `<span style="color: green;">${domain} is available!</span>`;
-                } else {
-                    resultsDiv.innerHTML = `<span style="color: red;">${domain} is not available.</span>`;
-                }
-            } catch (error) {
-                resultsDiv.innerHTML = `<span style="color: red;">Error checking domain: ${error.message}</span>`;
-            }
-        });
-    </script>
-</body>
-</html>
+// Route to check domain availability
+app.get("/api/check-domain", async (req, res) => {
+  const { domain } = req.query;
+
+  if (!domain) {
+    return res.status(400).json({ error: "Domain name is required" });
+  }
+
+  try {
+    const url = `https://www.namesilo.com/api/checkRegisterAvailability?key=${NAMESILO_API_KEY}&domain=${domain}&type=xml`;
+    const response = await axios.get(url);
+    res.status(200).send(response.data);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to check domain availability" });
+  }
+});
+
+// Route to create a Stripe payment session
+app.post("/api/create-checkout-session", async (req, res) => {
+  const { plan } = req.body;
+
+  const plans = {
+    basic: { name: "Basic Hosting", price: 500 },
+    standard: { name: "Standard Hosting", price: 1000 },
+    premium: { name: "Premium Hosting", price: 2000 },
+  };
+
+  const selectedPlan = plans[plan];
+
+  if (!selectedPlan) {
+    return res.status(400).json({ error: "Invalid plan selected" });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: selectedPlan.name,
+            },
+            unit_amount: selectedPlan.price,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: "http://localhost:5000/success.html",
+      cancel_url: "http://localhost:5000/cancel.html",
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create payment session" });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
